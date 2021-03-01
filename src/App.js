@@ -6,7 +6,7 @@ import {db} from './firebase'
     class App extends Component {
       constructor(){
         super()
-        this.state={myData:""}
+        this.state={myData:"", showAdd:"none", showUpdate:"none", toUpdate:""}
 
         this.nameRef= React.createRef()
         this.subjectRef= React.createRef()
@@ -25,14 +25,28 @@ import {db} from './firebase'
         db.on("value", (snapshot) =>{
           let myData = ""
           myData = (snapshot.val().students);
+          console.log(myData)
+          for (let obj of myData){
+            if (obj){
+              obj.action = <div><button onClick={()=>this.showUpdate(obj.id)}>Edit</button><button onClick={()=>this.removeItem(obj.id)}>Remove</button></div>
+            }
+          }
           this.setState({myData})
+
         }, function (errorObject) {
           console.log("The read failed: " + errorObject.code);
         })
       }
 
+      removeItem(id){
+        if (window.confirm("please confirm to delete item no."+id)){
+          db.child("students").child(id-1).remove()
+        }
+      }
+
       addData(e){
         e.preventDefault()
+
         var studentsRef = db.child("students");
         studentsRef.child(this.state.myData.length).set({
           "id":this.state.myData.length+1,
@@ -41,36 +55,30 @@ import {db} from './firebase'
           "roll": this.roleRef.current.value,
           "class": this.classRef.current.value
         });
-        this.nameRef.current.value=""
-        this.subjectRef.current.value=""
-        this.roleRef.current.value=""
-        this.classRef.current.value=""
+        this.setState({showAdd:"none"})
       }
 
-      deleteItem(e){
-        e.preventDefault()
-        if (this.selectRef.current.value !== "-1"){
-          db.child("students").child(this.selectRef.current.value-1).remove()
-        }
+      showUpdate(id){
+        this.setState({showUpdate:"block", toUpdate:id })
       }
 
       updateItem(e){
         e.preventDefault()
-        if (this.selectRef.current.value !== "-1"){
-          var studentsRef = db.child("students");
+        var studentsRef = db.child("students");
 
-          studentsRef.child(this.selectRef.current.value - 1).update({
-            "fullName": this.updateName.current.value || this.state.myData[this.selectRef.current.value - 1].fullName ,
-            "subject": this.updateSubject.current.value || this.state.myData[this.selectRef.current.value - 1].subject,
-            "roll": this.updateRole.current.value || this.state.myData[this.selectRef.current.value - 1].roll,
-            "class": this.updateClass.current.value || this.state.myData[this.selectRef.current.value - 1].class
-          });
-  
+        studentsRef.child(this.state.toUpdate-1).update({
+            "fullName": this.updateName.current.value || this.state.myData[this.state.toUpdate-1].fullName ,
+            "subject": this.updateSubject.current.value || this.state.myData[this.state.toUpdate-1].subject,
+            "roll": this.updateRole.current.value || this.state.myData[this.state.toUpdate-1].roll,
+            "class": this.updateClass.current.value || this.state.myData[this.state.toUpdate-1].class
+        })
+
           this.updateName.current.value=""
           this.updateSubject.current.value=""
           this.updateRole.current.value=""
           this.updateClass.current.value=""
-        }
+          this.setState({showUpdate:"none", toUpdate:""})
+        
       }
 
       render() {
@@ -87,12 +95,17 @@ import {db} from './firebase'
            },
           {
             Header: 'Role',
-            accessor: 'roll'
+            accessor: 'roll',
           },
           {
             Header: 'Class',
             accessor: 'class'
-          }]
+          },
+          {
+            Header: 'Action',
+            accessor: 'action'
+          },
+        ]
 
         return (
               <div>
@@ -101,41 +114,44 @@ import {db} from './firebase'
                 {this.state.myData? 
                   <ReactTable
                       data={this.state.myData.filter((element)=>{return (element!==false)})}
+                      // data = {{id:<button>click</button>}}
                       columns={columns}
                       defaultPageSize = {4}
                       pageSizeOptions = {[2,4,6]}
                   />
                   : <div>loading...</div>
                 }
-                <form style={{padding:"5px"}} onSubmit={(e)=>this.addData(e)}>
+                <button onClick={()=>this.setState({showAdd:"block"})}>Create a new item</button>
+                <form style={{padding:"5px",display:this.state.showAdd}} onSubmit={(e)=>this.addData(e)}>
                   <div>
-                    <input ref={this.nameRef} placeholder="name" type="text" required/>
+                    <input style={{width:"200px"}} ref={this.nameRef} placeholder="name" type="text" required/>
                   </div>
                   <div>
-                    <input ref={this.subjectRef} placeholder="subject" type="text" required/>
+                  <span>please select a subject</span><br/>
+                    <select style={{width:"200px"}} ref={this.subjectRef}>
+                      <option value="Firebase RealTime Database">Firebase RealTime Database</option>
+                      <option value="Math">React</option>
+                    </select>
                   </div>
                   <div>
-                    <input ref={this.roleRef} type="text" placeholder="role" required/>
+                    <span>please select a role</span><br/>
+                    <select style={{width:"200px"}} ref={this.roleRef}>
+                      <option value="Teacher">Teacher</option>
+                      <option value="Student">Student</option>
+                    </select>
                   </div>
                   <div>
-                    <input ref={this.classRef} type="text" placeholder="class" required/>
+                    <span>please select a class</span><br/>
+                    <select style={{width:"200px"}} ref={this.classRef}>
+                      <option value="Computer Science">Computer Science</option>
+                      <option value="Math">Math</option>
+                    </select>
                   </div>
                   <button>ADD DATA</button>
                 </form>
 
-                {this.state.myData?
-                  <form onSubmit={(e)=>this.deleteItem(e)}>
-                    <select ref={this.selectRef}>
-                      <option value="-1">please select a row</option>
-                      {this.state.myData.map((element,id)=>
-                      <option key={id} value={element.id}>Row number {element.id}</option>)}
-                    </select>
-                    <button>DELETE ITEM</button>
-                  </form>
-                  : <div>loading...</div>
-                }
 
-                <form style={{padding:"5px"}} onSubmit={(e)=>this.updateItem(e)}>
+                <form style={{padding:"5px", display:this.state.showUpdate}} onSubmit={(e)=>this.updateItem(e)}>
                 <span>Please leave blank to keep unchanged</span><br/>
                   <div>
                     <input ref={this.updateName} placeholder="name" type="text" />
